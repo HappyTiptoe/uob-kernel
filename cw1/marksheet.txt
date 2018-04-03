@@ -42,7 +42,7 @@ including hard to quantify features such as the efficiency, robustness,
 generality, realism, or style of a solution.
 
     Stage 1 : a baseline kernel
-[?]           - pre-emptive multi-tasking                            ( 30%)
+[x]           - pre-emptive multi-tasking                            ( 30%)
 [?]           - priority-based scheduler                             ( 10%)
 
     Stage 2 : closed generalisations and enhancements

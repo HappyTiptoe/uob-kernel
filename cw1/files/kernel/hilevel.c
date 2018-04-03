@@ -7,6 +7,8 @@
 
 #include "hilevel.h"
 
+extern void main_console();
+
 //P3, P4, P5
 pcb_t pcb[ 3 ]; int executing = 3;
 extern void     main_P3(); 
@@ -17,37 +19,46 @@ extern void     main_P5();
 extern uint32_t tos_P5;
 
 void scheduler(ctx_t* ctx){
+	PL011_putc( UART0, 's', true );
 	switch(executing){
 		case 3: {
+			// PL011_putc( UART0, 'a', true );
 			memcpy( &pcb[ 0 ].ctx, ctx, sizeof( ctx_t ) );
 			pcb[ 0 ].status = STATUS_READY; 
 			memcpy( ctx, &pcb[ 1 ].ctx, sizeof( ctx_t ) );
 			pcb[ 1 ].status = STATUS_EXECUTING;
 			executing = 4;
+			// PL011_putc( UART0, 'A', true );
 			break;
 		}
 
 		case 4: {
+			// PL011_putc( UART0, 'b', true );
 			memcpy( &pcb[ 1 ].ctx, ctx, sizeof( ctx_t ) );
 			pcb[ 1 ].status = STATUS_READY;
 			memcpy( ctx, &pcb[ 2 ].ctx, sizeof( ctx_t ) );
 			pcb[ 2 ].status = STATUS_EXECUTING;
 			executing = 5;
+			// PL011_putc( UART0, 'B', true );
 			break;
 		}
 
 		case 5: {
+			PL011_putc( UART0, 'c', true );
 			memcpy( &pcb[ 2 ].ctx, ctx, sizeof( ctx_t ) );
 			pcb[ 2 ].status = STATUS_READY;
 			memcpy( ctx, &pcb[ 0 ].ctx, sizeof( ctx_t ) );
 			pcb[ 0 ].status = STATUS_EXECUTING;
 			executing = 3;
+			PL011_putc( UART0, 'C', true );
 			break;
 		}
 
 		default: {
+			// PL011_putc( UART0, 'D', true );
 			break;
 		}
+		PL011_putc( UART0, 'S', true );
 	}
 }
 
@@ -63,32 +74,34 @@ void hilevel_handler_rst(ctx_t* ctx) {
 	GICC0->CTLR         = 0x00000001; // enable GIC interface
 	GICD0->CTLR         = 0x00000001; // enable GIC distributor
 
-	memset( &pcb[ 0 ], 0, sizeof( pcb_t ) );
-	pcb[ 0 ].pid      = 3;
-	pcb[ 0 ].status   = STATUS_READY;
-	pcb[ 0 ].ctx.cpsr = 0x50;
-	pcb[ 0 ].ctx.pc   = ( uint32_t )( &main_P3 );
-	pcb[ 0 ].ctx.sp   = ( uint32_t )( &tos_P3  );
+	// memset( &pcb[ 0 ], 0, sizeof( pcb_t ) );
+	// pcb[ 0 ].pid      = 3;
+	// pcb[ 0 ].status   = STATUS_READY;
+	// pcb[ 0 ].ctx.cpsr = 0x50;
+	// pcb[ 0 ].ctx.pc   = ( uint32_t )( &main_P3 );
+	// pcb[ 0 ].ctx.sp   = ( uint32_t )( &tos_P3  );
 
-	memset( &pcb[ 1 ], 0, sizeof( pcb_t ) );
-	pcb[ 1 ].pid      = 4;
-	pcb[ 1 ].status   = STATUS_READY;
-	pcb[ 1 ].ctx.cpsr = 0x50;
-	pcb[ 1 ].ctx.pc   = ( uint32_t )( &main_P4 );
-	pcb[ 1 ].ctx.sp   = ( uint32_t )( &tos_P4  );
+	// memset( &pcb[ 1 ], 0, sizeof( pcb_t ) );
+	// pcb[ 1 ].pid      = 4;
+	// pcb[ 1 ].status   = STATUS_READY;
+	// pcb[ 1 ].ctx.cpsr = 0x50;
+	// pcb[ 1 ].ctx.pc   = ( uint32_t )( &main_P4 );
+	// pcb[ 1 ].ctx.sp   = ( uint32_t )( &tos_P4  );
 
-	memset( &pcb[ 2 ], 0, sizeof( pcb_t ) );
-	pcb[ 2 ].pid      = 5;
-	pcb[ 2 ].status   = STATUS_READY;
-	pcb[ 2 ].ctx.cpsr = 0x50;
-	pcb[ 2 ].ctx.pc   = ( uint32_t )( &main_P5 );
-	pcb[ 2 ].ctx.sp   = ( uint32_t )( &tos_P5  );
+	// memset( &pcb[ 2 ], 0, sizeof( pcb_t ) );
+	// pcb[ 2 ].pid      = 5;
+	// pcb[ 2 ].status   = STATUS_READY;
+	// pcb[ 2 ].ctx.cpsr = 0x50;
+	// pcb[ 2 ].ctx.pc   = ( uint32_t )( &main_P5 );
+	// pcb[ 2 ].ctx.sp   = ( uint32_t )( &tos_P5  );
 
 	int_enable_irq();
 
-  	memcpy( ctx, &pcb[ 0 ].ctx, sizeof( ctx_t ) );
-  	pcb[ 0 ].status = STATUS_EXECUTING;
-  	executing = 3;
+  	// memcpy( ctx, &pcb[ 0 ].ctx, sizeof( ctx_t ) );
+  	// pcb[ 0 ].status = STATUS_EXECUTING;
+  	// executing = 3;
+  	 
+  	main_console();
 
 	return;
 }
