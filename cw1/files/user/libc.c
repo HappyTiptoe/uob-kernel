@@ -76,7 +76,7 @@ int write( int fd, const void* x, size_t n ) {
   return r;
 }
 
-int  read( int fd,       void* x, size_t n ) {
+int  read( int fd, void* x, size_t n ) {
   int r;
 
   asm volatile( "mov r0, %2 \n" // assign r0 = fd
