@@ -10,7 +10,6 @@
 
 //Which program running
 int executing = 0;
-int num_procs = 0;
 int tail_pid = 0;	//Last PCB element's pid
 int console_last;
 
@@ -22,52 +21,63 @@ extern void main_P5(); 		//P5 program
 extern void main_console();	//Console program
 extern uint32_t tos_procs;	//Base of stack for processes
 
+
+//works out PCB's priority
 uint32_t get_priority(int i){
 	return pcb[ i ].age + pcb[ i ].base_priority;
 }
 
-uint32_t find_next_prog(){
+
+//returns pid of PCB with highest priority
+uint32_t find_next_proc(){
 	uint32_t highest_pri = 0;
-	uint32_t pri = 0;
+	uint32_t pri;
 	pid_t pid = 0;
-	for( int i = 1; i < num_procs; i++ ){
+
+	for( int i = 1; i <= tail_pid; i++ ){
+
 		//Program has to be in READY or already EXECUTING 
 		if( pcb[ i ].status == STATUS_READY || pcb[ i ].status == STATUS_EXECUTING ){
+
 			pri = get_priority(i);
-			//If higher priority than others:
+
 			if(pri > highest_pri){
 				highest_pri = pri;
-				next_prog = i;
+				pid = i;
 			}
 		}
 	}
 	return pid;
 }
 
-//Picks, using priority, next program to execute
-void scheduler(ctx_t* ctx){
-	if( num_procs > 1 ){ //If we have more programs than the console:
 
-		pid_t next_prog = 0;
-
-		if(console_last){
-
-
-			//Scan all programs for most important:
-			next_prog = find_next_prog();
-
-			//Inefficiently update ages of rest:
-			for( int i = 1; i < num_procs; i++ ){
-				if( pcb[ i ].status == STATUS_READY || pcb[ i ].status != STATUS_EXECUTING ){
-					if( i != next_prog ){
-						pcb[ i ].age++;
-					}
-				}			
+//increments all PCB ages except one picked by scheduler
+void update_ages(pid_t proc_to_ignore){
+	for( int i = 1; i <= tail_pid; i++ ){
+		if( pcb[ i ].status == STATUS_READY || pcb[ i ].status != STATUS_EXECUTING ){
+			if( i != proc_to_ignore ){
+				pcb[ i ].age++;
 			}
+		}			
+	}	
+}
 
+
+//Picks, using priority, next program to execute
+//Alternates between console and programs
+void scheduler(ctx_t* ctx){
+
+	//If more programs than the console:
+	if( tail_pid > 0 ){	
+		pid_t next_proc = 0;
+
+		//If console ran last
+		if(console_last){
+			next_proc = find_next_proc();
+			update_ages(next_proc)
 			console_last = 0;
-
-		} //end console_last
+		}
+		//Otherwise run console (next_proc already 0)
 		else{
 			console_last = 1;
 		}
@@ -76,11 +86,11 @@ void scheduler(ctx_t* ctx){
    		memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );
    		pcb[ executing ].status = STATUS_READY;  
 			
-		//Load new running
-		memcpy( ctx, &pcb[ next_prog ].ctx, sizeof( ctx_t ) );
-		pcb[ next_prog ].status = STATUS_EXECUTING;
-		pcb[ next_prog ].age = 0;
-  		executing = next_prog;	
+		//Load new running & reset age
+		memcpy( ctx, &pcb[ next_proc ].ctx, sizeof( ctx_t ) );
+		pcb[ next_proc ].status = STATUS_EXECUTING;
+		pcb[ next_proc ].age = 0;
+  		executing = next_proc;	
 	}
 }
 
@@ -100,7 +110,6 @@ void hilevel_handler_rst(ctx_t* ctx) {
 
 	//Initialise console PCB:
 	memset( &pcb[0], 0, sizeof(pcb_t) );
-	num_procs++;
 
 	pcb[0].pid = 0;
 	pcb[0].status = STATUS_READY;
@@ -160,48 +169,53 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
      	//fork
      	case 0x03 : {
 	     	
-	     	//Create new child process with unique PID:
-
+	     	//////////////////////////////////////////////////
+	     	// 1. Create new child process with unique PID: //
+	     	//////////////////////////////////////////////////
+	     	
      		int free_pid = 0; //pid of process to become child
 
-     		//Search for any existing, free, PCBs
-     		for( int i = 1; i < num_procs; i++ ){
+     		//Search for any existing, free, PCBs:
+     		for( int i = 1; i <= tail_pid; i++ ){
      			if(pcb[ i ].status == STATUS_TERMINATED){
      				free_pid = i;
      				break;
      			}
      		}
 
-     		//If none found, create & append new PCB
+     		//If none found, create & append new PCB:
      		if(free_pid == 0){
      			PL011_putc( UART0, 'N', true );
 	     		tail_pid++; 									//Creating new PCB
-	    		num_procs++;									//== 1 more process
 	     		free_pid = tail_pid; 							//PCB to become child = new PCB
 	     		memset( &pcb[ free_pid ], 0, sizeof(pcb_t) );	//Allocate phys memory for child     			
      		}
 
-     		//Replicate state of parent in child
+     		///////////////////////////////////////////
+     		// 2. Replicate state of parent in child //
+     		///////////////////////////////////////////
+     		
 	   		memcpy( &pcb[ free_pid ].ctx, ctx, sizeof( ctx_t ) );	//Copy parent prog into child
     		pcb[ free_pid ].status = STATUS_CREATED; 				//Child process created
     		pcb[ free_pid ].pid = free_pid;							//Set pid equal to its position in PCB list
 
-     		//Parent and child return (r0):
-     		//PARENT: child.pid
-     		ctx->gpr[ 0 ] = free_pid;
+    		/////////////////////////////////////
+     		// 3. Parent and child return vals //
+     		/////////////////////////////////////
+     		
+     		ctx->gpr[ 0 ] = free_pid;			//PARENT: child.pid
+     		pcb[ free_pid ].ctx.gpr[ 0 ] = 0;	//CHILD: 0
 
-     		//CHILD: 0
-     		pcb[ free_pid ].ctx.gpr[ 0 ] = 0;
-
-     		//Pause parent process & execute child
+     		////////////////////////////////////////////
+     		//4. Pause parent process & execute child //
+     		////////////////////////////////////////////
+     		
      		memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );	//Preserve current running
     		pcb[ executing ].status = STATUS_READY;					//Update status
 
   			memcpy( ctx, &pcb[ free_pid ].ctx, sizeof( ctx_t ) );	//Load child into current
   			pcb[ free_pid ].status = STATUS_EXECUTING;				//Update status
   			executing = free_pid;
-
-  			//PL011_putc( UART0, 'F', true );
      		
   			break;		
 
@@ -220,16 +234,25 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
 
      		PL011_putc( UART0, 'E', true );
 
-     		//Replace current process image with new image
+     		/////////////////////////////////////////////////////
+     		// 1. Replace current process image with new image //
+     		/////////////////////////////////////////////////////
+     		
      		uint32_t new_prog_img = ctx->gpr[ 0 ];
      		ctx->pc = new_prog_img;
 
-     		//Change base priority depending on program image
+     		////////////////////////////////////////////////////////
+     		// 2. Change base priority depending on program image //
+     		////////////////////////////////////////////////////////
+     		
      		if( strcmp(new_prog_img, &main_P3) == 0 ){pcb[ executing ].base_priority = 1;}
      		if( strcmp(new_prog_img, &main_P4) == 0 ){pcb[ executing ].base_priority = 2;}
      		if( strcmp(new_prog_img, &main_P5) == 0 ){pcb[ executing ].base_priority = 3;}
 
-     		//Reset state (sp & age)
+     		///////////////////////////////
+     		// 3. Reset state (sp & age) //
+     		///////////////////////////////
+     		
      		ctx->sp = (uint32_t)(&tos_procs + 4096*pcb[ executing ].pid );
      		pcb[ executing ].age = 0;
 
