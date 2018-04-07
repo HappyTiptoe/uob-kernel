@@ -18,6 +18,7 @@ lolevel_handler_rst: bl    int_init                @ initialise interrupt vector
 
                      msr   cpsr, #0xD3             @ enter SVC mode with IRQ and FIQ interrupts disabled
                      ldr   sp, =tos_svc            @ initialise SVC mode stack
+                    
                      msr   cpsr, #0xD2             @ enter IRQ mode with IRQ and FIQ interrupts disabled
                      ldr   sp, =tos_irq            @ initialise IRQ mode stack
 
@@ -32,7 +33,7 @@ lolevel_handler_rst: bl    int_init                @ initialise interrupt vector
                      add   sp, sp, #60             @ update   IRQ mode SP
                      movs  pc, lr                  @ return from interrupt
 
-lolevel_handler_irq: sub   lr, lr, #4             @ correct return address
+lolevel_handler_irq: sub   lr, lr, #4              @ correct return address
                      sub   sp, sp, #60             @ update   IRQ mode stack
                      stmia sp, { r0-r12, sp, lr }^ @ preserve USR registers
                      mrs   r0, spsr                @ move     USR        CPSR
@@ -41,7 +42,7 @@ lolevel_handler_irq: sub   lr, lr, #4             @ correct return address
                      mov   r0, sp                  @ set    high-level C function arg. = SP
                      ldr   r1, [ lr, #-4 ]         @ load   irq instruction i hope lmao
                      bic   r1, r1, #0xFF000000     @ set    high-level C function arg. = irq immediate
-                     bl    hilevel_handler_irq    @ invoke high-level C function
+                     bl    hilevel_handler_irq     @ invoke high-level C function
         
                      ldmia sp!, { r0, lr }         @ load     USR mode PC and CPSR
                      msr   spsr, r0                @ move     USR mode        CPSR
@@ -58,7 +59,7 @@ lolevel_handler_svc: sub   lr, lr, #0              @ correct return address
                      mov   r0, sp                  @ set    high-level C function arg. = SP
                      ldr   r1, [ lr, #-4 ]         @ load   svc instruction
                      bic   r1, r1, #0xFF000000     @ set    high-level C function arg. = svc immediate
-                     bl    hilevel_handler_svc    @ invoke high-level C function
+                     bl    hilevel_handler_svc     @ invoke high-level C function
         
                      ldmia sp!, { r0, lr }         @ load     USR mode PC and CPSR
                      msr   spsr, r0                @ move     USR mode        CPSR

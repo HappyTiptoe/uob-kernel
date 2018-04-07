@@ -1,11 +1,13 @@
 #include <stdio.h>
-#include "mathslib.h"
+#include <stdint.h>
 
 int main(){
-	int number = 6;
-	int number_plus_two = addTwo(number);
-	printf("number is now: %d\n", number_plus_two);
-	int number_sq = square(number);
-	printf("number squared is: %d\n", number_sq);
-	return 0;
+	int x;
+	int* xptr;
+	int num = 0x00001000;
+	xptr = &num;
+	x = (uint32_t)(&num);
+
+	printf("num: %d\nxptr: %d\nx: %d\n", num, xptr, x);
+
 }

@@ -86,15 +86,18 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
    */
 
   switch( id ) {
+    int fd;
+    char* x;
+    int n;
     case 0x00 : { // 0x00 => yield()
       scheduler( ctx );
       break;
     }
 
     case 0x01 : { // 0x01 => write( fd, x, n )
-      int   fd = ( int   )( ctx->gpr[ 0 ] );  
-      char*  x = ( char* )( ctx->gpr[ 1 ] );  
-      int    n = ( int   )( ctx->gpr[ 2 ] ); 
+      fd = ( int   )( ctx->gpr[ 0 ] );  
+      x = ( char* )( ctx->gpr[ 1 ] );  
+      n = ( int   )( ctx->gpr[ 2 ] ); 
 
       for( int i = 0; i < n; i++ ) {
         PL011_putc( UART0, *x++, true );

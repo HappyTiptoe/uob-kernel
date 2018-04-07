@@ -1,2 +1,0 @@
-int addTwo();
-int square();
