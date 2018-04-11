@@ -67,14 +67,13 @@ void update_ages(pid_t proc_to_ignore){
 //Alternates between console and programs
 void scheduler(ctx_t* ctx){
 
-	//If more programs than the console:
+	//If more programs than just the console:
 	if( tail_pid > 0 ){	
 		pid_t next_proc = 0;
 
 		//If console ran last
 		if(console_last){
 			next_proc = find_next_proc();
-			update_ages(next_proc)
 			console_last = 0;
 		}
 		//Otherwise run console (next_proc already 0)
@@ -82,21 +81,22 @@ void scheduler(ctx_t* ctx){
 			console_last = 1;
 		}
 
+    update_ages(next_proc);
+
 		//Store old running
-   		memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );
-   		pcb[ executing ].status = STATUS_READY;  
+   	memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );
+   	pcb[ executing ].status = STATUS_READY;  
 			
 		//Load new running & reset age
 		memcpy( ctx, &pcb[ next_proc ].ctx, sizeof( ctx_t ) );
 		pcb[ next_proc ].status = STATUS_EXECUTING;
 		pcb[ next_proc ].age = 0;
-  		executing = next_proc;	
+  	executing = next_proc;	
 	}
 }
 
 
 void hilevel_handler_rst(ctx_t* ctx) {
-	PL011_putc(UART0, 'R', true);
 	TIMER0->Timer1Load  = 0x00100000; // select period = 2^20 ticks ~= 1 sec
 	TIMER0->Timer1Ctrl  = 0x00000002; // select 32-bit   timer
  	TIMER0->Timer1Ctrl |= 0x00000040; // select periodic timer
@@ -120,10 +120,9 @@ void hilevel_handler_rst(ctx_t* ctx) {
 	int_enable_irq();
 
 	//Execute console
-  	memcpy( ctx, &pcb[ 0 ].ctx, sizeof( ctx_t ) );
-  	pcb[ 0 ].status = STATUS_EXECUTING;
-  	executing = 0;
-
+  memcpy( ctx, &pcb[ 0 ].ctx, sizeof( ctx_t ) );
+  pcb[ 0 ].status = STATUS_EXECUTING;
+  executing = 0;
   	console_last = 1;
 
 	return;
@@ -155,126 +154,121 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
 		//write
 		case 0x01 : {
 			int fd = (int)(ctx->gpr[0]);  
-      		char* x = (char*)(ctx->gpr[1]);  
-      		int n = (int)(ctx->gpr[2]); 
+      	char* x = (char*)(ctx->gpr[1]);  
+      	int n = (int)(ctx->gpr[2]); 
 
-      		for(int i = 0; i < n; i++) {
-      		  PL011_putc(UART0, *x++, true);
+      	for(int i = 0; i < n; i++) {
+      	  PL011_putc(UART0, *x++, true);
      		 }
       
      		 ctx->gpr[0] = n;
      		 break;
      	}
 
-     	//fork
-     	case 0x03 : {
+    //fork
+    case 0x03 : {
 	     	
-	     	//////////////////////////////////////////////////
-	     	// 1. Create new child process with unique PID: //
-	     	//////////////////////////////////////////////////
+	   	//////////////////////////////////////////////////
+	   	// 1. Create new child process with unique PID: //
+	   	//////////////////////////////////////////////////
 	     	
-     		int free_pid = 0; //pid of process to become child
+      int free_pid = 0; //pid of process to become child
 
-     		//Search for any existing, free, PCBs:
-     		for( int i = 1; i <= tail_pid; i++ ){
-     			if(pcb[ i ].status == STATUS_TERMINATED){
-     				free_pid = i;
-     				break;
-     			}
-     		}
+      //Search for any existing, free, PCBs:
+      for( int i = 1; i <= tail_pid; i++ ){
+      	if(pcb[ i ].status == STATUS_TERMINATED){
+      		free_pid = i;
+      		break;
+      	}
+      }
 
-     		//If none found, create & append new PCB:
-     		if(free_pid == 0){
-     			PL011_putc( UART0, 'N', true );
-	     		tail_pid++; 									//Creating new PCB
-	     		free_pid = tail_pid; 							//PCB to become child = new PCB
-	     		memset( &pcb[ free_pid ], 0, sizeof(pcb_t) );	//Allocate phys memory for child     			
-     		}
+      //If none found, create & append new PCB:
+      if(free_pid == 0){
+      	PL011_putc( UART0, 'N', true );
+	    	tail_pid++; 									//Creating new PCB
+	    	free_pid = tail_pid; 							//PCB to become child = new PCB
+	    	memset( &pcb[ free_pid ], 0, sizeof(pcb_t) );	//Allocate phys memory for child     			
+      }
 
-     		///////////////////////////////////////////
-     		// 2. Replicate state of parent in child //
-     		///////////////////////////////////////////
+      ///////////////////////////////////////////
+     	// 2. Replicate state of parent in child //
+     	///////////////////////////////////////////
+     	
+	   	memcpy( &pcb[ free_pid ].ctx, ctx, sizeof( ctx_t ) );	//Copy parent prog into child
+    	pcb[ free_pid ].status = STATUS_CREATED; 				//Child process created
+    	pcb[ free_pid ].pid = free_pid;							//Set pid equal to its position in PCB list
+
+    	/////////////////////////////////////
+     	// 3. Parent and child return vals //
+     	/////////////////////////////////////
      		
-	   		memcpy( &pcb[ free_pid ].ctx, ctx, sizeof( ctx_t ) );	//Copy parent prog into child
-    		pcb[ free_pid ].status = STATUS_CREATED; 				//Child process created
-    		pcb[ free_pid ].pid = free_pid;							//Set pid equal to its position in PCB list
+     	ctx->gpr[ 0 ] = free_pid;			//PARENT: child.pid
+     	pcb[ free_pid ].ctx.gpr[ 0 ] = 0;	//CHILD: 0
 
-    		/////////////////////////////////////
-     		// 3. Parent and child return vals //
-     		/////////////////////////////////////
+     	////////////////////////////////////////////
+     	//4. Pause parent process & execute child //
+     	////////////////////////////////////////////
      		
-     		ctx->gpr[ 0 ] = free_pid;			//PARENT: child.pid
-     		pcb[ free_pid ].ctx.gpr[ 0 ] = 0;	//CHILD: 0
+     	memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );	//Preserve current running
+    	pcb[ executing ].status = STATUS_READY;					//Update status
 
-     		////////////////////////////////////////////
-     		//4. Pause parent process & execute child //
-     		////////////////////////////////////////////
+  		memcpy( ctx, &pcb[ free_pid ].ctx, sizeof( ctx_t ) );	//Load child into current
+  		pcb[ free_pid ].status = STATUS_EXECUTING;				//Update status
+  		executing = free_pid;
      		
-     		memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );	//Preserve current running
-    		pcb[ executing ].status = STATUS_READY;					//Update status
-
-  			memcpy( ctx, &pcb[ free_pid ].ctx, sizeof( ctx_t ) );	//Load child into current
-  			pcb[ free_pid ].status = STATUS_EXECUTING;				//Update status
-  			executing = free_pid;
-     		
-  			break;		
-
+  		break;		
 		}
 
 		//exit
 		case 0x04 : {
-			pcb[ executing ].status = STATUS_TERMINATED;
-			executing = 0; //Jump 
-			PL011_putc( UART0, 'X', true );
+
+      pcb[ executing ].status = STATUS_TERMINATED;
+      //scheduler(ctx);
+      executing = 0; //Jump to console
 			break;
 		}
 
-     	//exec
-     	case 0x05 : {
+    //exec
+    case 0x05 : {
 
-     		PL011_putc( UART0, 'E', true );
-
-     		/////////////////////////////////////////////////////
-     		// 1. Replace current process image with new image //
-     		/////////////////////////////////////////////////////
+   		/////////////////////////////////////////////////////
+   		// 1. Replace current process image with new image //
+   		/////////////////////////////////////////////////////
      		
-     		uint32_t new_prog_img = ctx->gpr[ 0 ];
-     		ctx->pc = new_prog_img;
+   		uint32_t new_prog_img = ctx->gpr[ 0 ];
+   		ctx->pc = new_prog_img;
 
-     		////////////////////////////////////////////////////////
-     		// 2. Change base priority depending on program image //
-     		////////////////////////////////////////////////////////
+   		////////////////////////////////////////////////////////
+   		// 2. Change base priority depending on program image //
+   		////////////////////////////////////////////////////////
      		
-     		if( strcmp(new_prog_img, &main_P3) == 0 ){pcb[ executing ].base_priority = 1;}
-     		if( strcmp(new_prog_img, &main_P4) == 0 ){pcb[ executing ].base_priority = 2;}
-     		if( strcmp(new_prog_img, &main_P5) == 0 ){pcb[ executing ].base_priority = 3;}
+   		if( strcmp(new_prog_img, &main_P3) == 0 ){pcb[ executing ].base_priority = 1;}
+   		if( strcmp(new_prog_img, &main_P4) == 0 ){pcb[ executing ].base_priority = 2;}
+   		if( strcmp(new_prog_img, &main_P5) == 0 ){pcb[ executing ].base_priority = 4;}
 
-     		///////////////////////////////
-     		// 3. Reset state (sp & age) //
-     		///////////////////////////////
+   		///////////////////////////////
+   		// 3. Reset state (sp & age) //
+   		///////////////////////////////
      		
-     		ctx->sp = (uint32_t)(&tos_procs + 4096*pcb[ executing ].pid );
-     		pcb[ executing ].age = 0;
+   		ctx->sp = (uint32_t)(&tos_procs + 4096*pcb[ executing ].pid );
+   		pcb[ executing ].age = 0;
 
-     		break;
-     	}
+   		break;
+   	}
 
-     	//KILL YOUR CHILDREN
-     	case 0x06 : {
+   	case 0x06 : {
+   		PL011_putc( UART0, 'K', true );
 
-     		PL011_putc( UART0, 'K', true );
+   		pid_t pid = ctx->gpr[ 0 ];
+   		pcb[ pid ].status = STATUS_TERMINATED;
+      scheduler(ctx);
+   		break;
+   	}
 
-     		pid_t pid_to_slaughter = ctx->gpr[ 0 ];
-     		pcb[ pid_to_slaughter ].status = STATUS_TERMINATED;
-
-     		break;
-     	}
-
-     	default : {
-     		break;
-     	}
-
-	}
+   	default : {
+   		break;
+   	}
+  }
 
 
   return;
