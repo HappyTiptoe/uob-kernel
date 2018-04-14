@@ -21,12 +21,13 @@
 #include "SP804.h"
 
 
-// Include functionality relating to the   kernel.
+// Include functionality relating to the kernel.
 
 #include "lolevel.h"
 #include     "int.h"
 
 typedef int pid_t;
+typedef int chid_t;
 
 typedef enum { 
   STATUS_CREATED,
@@ -41,11 +42,25 @@ typedef struct {
 } ctx_t;
 
 typedef struct {
-     pid_t    pid;
+  pid_t    pid;
   status_t status;
-     ctx_t    ctx;
-     uint32_t age;
-     uint32_t base_priority;
+  ctx_t    ctx;
+  uint32_t age;
+  uint32_t base_priority;
+  chid_t   chan_end;
 } pcb_t;
 
+typedef struct {
+  pid_t  w;            //process DOING THE SENDING
+  pid_t  r;            //process to send to
+  chid_t chan_ID;      //for identifying
+  int    data_on_chan; //flag for if data ready to be read
+  int    data;
+  //int   flag_chan_in_use; //TODO: Create some blocking stuff
+} chan_t;
+
 #endif
+
+
+
+

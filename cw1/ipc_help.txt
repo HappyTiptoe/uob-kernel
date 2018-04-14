@@ -1,0 +1,156 @@
+**********
+* FORUMS *
+**********
+
+All pipes are non-blocking and:
+> return 0 bytes read if you try to read them and there's nothing to read 
+> or 0 bytes written if you try to write and there is still something left to read. 
+
+Then in the libc, you will want to create a separate bunch of library functions that block until the result of reading or writing is not 0. 
+
+The idea is that a process may use the:
+> non-blocking library calls when it wants asynchronous behaviour (waiter) 
+> and use blocking calls when it doesn't need asynchronous behaviour and would rather wait for response (philosophers).
+
+******************
+* STACK OVERFLOW *
+******************
+
+// FILE DESCRIPTORS \\
+1:
+It is by convention that, UNIX System shells associates the file descriptor 0 with Standard Input of a process, file descriptor 1 with Standard Output, and file desciptor 2 with Standard Error.
+
+************
+* WHATSAPP *
+************
+
+IPC:
+
+>Needs these features in Kernel
+>System I implement needs to let multiple processes communicate at same time
+>>A->B talking shouldn't stop C->D
+
+Programs should be able to communicate to >1 program & listen from >1.
+(use FDs or chanIDs)
+
+IPC_SET		chanid_t set_chan (returns id?)
+IPC_DEL		void     del_chan
+
+IPC_SEND	void     write_chan
+IPC_TRANSFER	void     read_chan
+
+IPC_CHECK	check if data to send between?
+
+IPC_GETCHANNEL	chanid_t getChan...
+IPC_GETEND	pid_t    getOtherEndPID 
+___________________________________
+
+Channels (pipes?)
+
+struct channel{
+  pid_t w;		//pid1 -> wants to send
+  pid_t r; 		//pid2 -> wants to receive
+  int chan_ID;
+  int flag_data_to_send;
+  int data;
+}
+____________________________________
+
+can use:
+  send(int data, int chan_ID);
+____________________________________
+
+create sys call of:
+
+getChanToTalkToPID(int x);
+
+kernel returns channel that talks to ID x
+
+____________________________________
+
+Create array of channels in hilevel.c
+____________________________________
+
+Make:
+  1) Handshake programs (P1 to talk to P2)
+  2) Philosopher program (eating/thinking with maybe ID printing)
+  3) Waiter program
+____________________________________
+
+int main(){
+  int pipe_ends_proc_1[2]; // { R [pipe_ends_proc_1] W }
+  int pipe_ends_proc_2[2]; // { R [pipe_ends_proc_2] W }
+  
+  pipe( pipe_ends_proc_1[] ); //Make this ourselves
+  pipe( pipe_ends_proc_2[] ); //Connecting FDs to current proc ((see table))
+
+  int return_val = fork(); //child process (1) created
+
+  if( return_val == 0 ){
+    //child process code...
+  }
+
+  
+}
+
+Create chan_to:
+  > make a chan with: w = executing
+
+  c.w = 1
+
+  > receive_chan to 1 
+
+  >connect_ends(p1_write, p2_read)
+  >
+
+/*
+ * FILE TABLE
+ * 0 stdin
+ * 1 stdout
+ * 2 stderr
+ * 3 pipe_ends_proc_1 R <-- Pipe should do this
+ * 4 pipe_ends_proc_1 W
+ * 5 pipe_ends_proc_2 R
+ * 6 pipe_ends_proc_2 W <-- 
+ *
+ */
+
+
+THOUGHTS:
+>have structs. If a channel in use (a flag?), find empty.
+>Process calling to SEND data can set itself as R (structs p1)
+>Process looking to RECEIVE can set itself to W (struct p2)
+
+>We're pretending we're only writing the P_.c code and assuming the sys calls are in place.
+They're not. I have to write them.
+We need getpid to return the function's pid (we do this 
+
+
+void main_P1(){
+ chid_t 
+  
+}
+
+
+
+pipe is doing:
+  int fd[2];
+  pipe(fd);
+
+  now fd[0] is the send address (aka a channel made like:)
+    channel: write = executing
+              read = blank
+
+  
+
+
+It makes fd[0] equal to where you write to for input
+and you get output from fd[1].
+
+if I could do: 
+  send(fd[0], int x)
+  it would know to go to the program with a write address at fd[0]
+
+ 
+
+

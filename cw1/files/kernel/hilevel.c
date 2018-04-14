@@ -9,17 +9,24 @@
 
 
 //Which program running
-int executing = 0;
-int tail_pid = 0;	//Last PCB element's pid
-int console_last;
+int     executing = 0;
+pid_t    tail_pid = 0;	//Last PCB element's pid
+int progs_running = 0;
+int      console_last;
 
 //PCB Definitions
-pcb_t pcb[ 32 ];			//Init space for 32 PCBs
-extern void main_P3(); 		//P3 program
-extern void main_P4(); 		//P4 program
-extern void main_P5(); 		//P5 program
+pcb_t pcb[ 32 ];			      //32 PCBs
+extern void main_P1();      //P1 program
+extern void main_P2();      //P2 program
+extern void main_P3(); 		  //P3 program
+extern void main_P4(); 		  //P4 program
+extern void main_P5(); 		  //P5 program
 extern void main_console();	//Console program
 extern uint32_t tos_procs;	//Base of stack for processes
+
+//Channel definitions
+chan_t chan[ 2 ];
+chid_t chan_tail = 0;
 
 
 //works out PCB's priority
@@ -68,7 +75,7 @@ void update_ages(pid_t proc_to_ignore){
 void scheduler(ctx_t* ctx){
 
 	//If more programs than just the console:
-	if( tail_pid > 0 ){	
+	if( progs_running > 1 ){	
 		pid_t next_proc = 0;
 
 		//If console ran last
@@ -123,8 +130,9 @@ void hilevel_handler_rst(ctx_t* ctx) {
   memcpy( ctx, &pcb[ 0 ].ctx, sizeof( ctx_t ) );
   pcb[ 0 ].status = STATUS_EXECUTING;
   executing = 0;
-  	console_last = 1;
-
+  console_last = 1;
+  progs_running = 1;
+  
 	return;
 }
 
@@ -147,30 +155,36 @@ void hilevel_handler_irq(ctx_t* ctx) {
 }
 
 
+
 void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
 
 	switch(id){
 
+    //yield 
+    case 0x00 : {
+      scheduler( ctx );
+      break;
+    }
+
 		//write
 		case 0x01 : {
 			int fd = (int)(ctx->gpr[0]);  
-      	char* x = (char*)(ctx->gpr[1]);  
-      	int n = (int)(ctx->gpr[2]); 
+      char* x = (char*)(ctx->gpr[1]);  
+      int n = (int)(ctx->gpr[2]); 
 
-      	for(int i = 0; i < n; i++) {
-      	  PL011_putc(UART0, *x++, true);
-     		 }
+      for(int i = 0; i < n; i++) {
+        PL011_putc(UART0, *x++, true);
+     	 }
       
-     		 ctx->gpr[0] = n;
-     		 break;
+     	 ctx->gpr[0] = n;
+     	 break;
      	}
 
     //fork
     case 0x03 : {
 	     	
-	   	//////////////////////////////////////////////////
-	   	// 1. Create new child process with unique PID: //
-	   	//////////////////////////////////////////////////
+	   	///////////////////////////////////////////////
+	   	// 1. Create new child process with unique PID:
 	     	
       int free_pid = 0; //pid of process to become child
 
@@ -185,36 +199,36 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
       //If none found, create & append new PCB:
       if(free_pid == 0){
       	PL011_putc( UART0, 'N', true );
-	    	tail_pid++; 									//Creating new PCB
-	    	free_pid = tail_pid; 							//PCB to become child = new PCB
+	    	tail_pid++; 								                	//Creating new PCB
+	    	free_pid = tail_pid; 							            //PCB to become child = new PCB
 	    	memset( &pcb[ free_pid ], 0, sizeof(pcb_t) );	//Allocate phys memory for child     			
       }
 
-      ///////////////////////////////////////////
-     	// 2. Replicate state of parent in child //
-     	///////////////////////////////////////////
+      ////////////////////////////////////////
+     	// 2. Replicate state of parent in child
      	
-	   	memcpy( &pcb[ free_pid ].ctx, ctx, sizeof( ctx_t ) );	//Copy parent prog into child
-    	pcb[ free_pid ].status = STATUS_CREATED; 				//Child process created
-    	pcb[ free_pid ].pid = free_pid;							//Set pid equal to its position in PCB list
+	   	memcpy( &pcb[ free_pid ].ctx, ctx, sizeof( ctx_t ) );	 //Copy parent prog into child
+    	pcb[ free_pid ].status = STATUS_CREATED; 				       //Child process created
+    	pcb[ free_pid ].pid = free_pid;							           //Set pid equal to its position in PCB list
+      pcb[ free_pid ].chan_end = -1;
 
-    	/////////////////////////////////////
-     	// 3. Parent and child return vals //
-     	/////////////////////////////////////
+    	//////////////////////////////////
+     	// 3. Parent and child return vals
      		
-     	ctx->gpr[ 0 ] = free_pid;			//PARENT: child.pid
+     	ctx->gpr[ 0 ] = free_pid;			    //PARENT: child.pid
      	pcb[ free_pid ].ctx.gpr[ 0 ] = 0;	//CHILD: 0
 
-     	////////////////////////////////////////////
-     	//4. Pause parent process & execute child //
-     	////////////////////////////////////////////
+     	/////////////////////////////////////////
+     	//4. Pause parent process & execute child
      		
-     	memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );	//Preserve current running
-    	pcb[ executing ].status = STATUS_READY;					//Update status
+     	memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );	 //Preserve current running
+    	pcb[ executing ].status = STATUS_READY;					         //Update status
 
   		memcpy( ctx, &pcb[ free_pid ].ctx, sizeof( ctx_t ) );	//Load child into current
-  		pcb[ free_pid ].status = STATUS_EXECUTING;				//Update status
+  		pcb[ free_pid ].status = STATUS_EXECUTING;				    //Update status
   		executing = free_pid;
+      
+      progs_running++;
      		
   		break;		
 		}
@@ -223,32 +237,30 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
 		case 0x04 : {
 
       pcb[ executing ].status = STATUS_TERMINATED;
+      progs_running--;
       //scheduler(ctx);
-      executing = 0; //Jump to console
+       executing = 0; //Jump to console
 			break;
 		}
 
     //exec
     case 0x05 : {
 
-   		/////////////////////////////////////////////////////
-   		// 1. Replace current process image with new image //
-   		/////////////////////////////////////////////////////
+   		//////////////////////////////////////////////////
+   		// 1. Replace current process image with new image
      		
    		uint32_t new_prog_img = ctx->gpr[ 0 ];
    		ctx->pc = new_prog_img;
 
-   		////////////////////////////////////////////////////////
-   		// 2. Change base priority depending on program image //
-   		////////////////////////////////////////////////////////
+   		/////////////////////////////////////////////////////
+   		// 2. Change base priority depending on program image
      		
    		if( strcmp(new_prog_img, &main_P3) == 0 ){pcb[ executing ].base_priority = 1;}
    		if( strcmp(new_prog_img, &main_P4) == 0 ){pcb[ executing ].base_priority = 2;}
    		if( strcmp(new_prog_img, &main_P5) == 0 ){pcb[ executing ].base_priority = 4;}
 
-   		///////////////////////////////
-   		// 3. Reset state (sp & age) //
-   		///////////////////////////////
+   		////////////////////////////
+   		// 3. Reset state (sp & age)
      		
    		ctx->sp = (uint32_t)(&tos_procs + 4096*pcb[ executing ].pid );
    		pcb[ executing ].age = 0;
@@ -256,15 +268,115 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
    		break;
    	}
 
+    //kill
    	case 0x06 : {
    		PL011_putc( UART0, 'K', true );
 
    		pid_t pid = ctx->gpr[ 0 ];
    		pcb[ pid ].status = STATUS_TERMINATED;
+      progs_running--;
       scheduler(ctx);
    		break;
    	}
-
+    
+    //getpid
+    case 0x08 : {
+      ctx->gpr[ 0 ] = pcb[ executing ].pid;
+      break;
+    }
+    
+    //create_chan
+    case 0x10 : {
+      PL011_putc( UART0, 'C', true );
+      
+      //Obtain other end pid
+      pid_t pid = ctx->gpr[ 0 ];
+      chid_t free_chan;
+      
+      //Check channel already exists
+      if( pcb[ executing ].chan_end != -1 ){
+        PL011_putc( UART0, 'x', true );
+        ctx->gpr[ 0 ] = pcb[ executing ].chan_end;
+      }
+      else if( pcb[ pid ].status == STATUS_READY  ){
+        PL011_putc( UART0, 'y', true );
+        //Create new channel with pid1(w) as executing and pid2(r) as pid arg.
+        chan_tail++;
+        free_chan = chan_tail;
+      
+        memset( &chan[ free_chan ], 0, sizeof(chan_t) ); //create channel
+      
+        //set values in channel
+        chan[ free_chan ].w = executing;
+        chan[ free_chan ].r = pid;
+        chan[ free_chan ].chan_ID = chan_tail;
+        chan[ free_chan ].data_on_chan = 0; //nothing in it yet
+        
+        //set pcb chanends
+        pcb[ executing ].chan_end = free_chan;
+        pcb[ pid ].chan_end = free_chan;
+      
+        //return value is chan's ID
+        ctx->gpr[ 0 ] = chan[ free_chan ].chan_ID;        
+      }else{
+        PL011_putc( UART0, 'z', true );
+        ctx->gpr[ 0 ] = -1;
+      }
+      break;  
+    }
+    
+    
+    //send
+    case 0x11 : {
+      //PL011_putc( UART0, 'S', true );
+      chid_t chid = ctx->gpr[ 0 ];
+      int data = ctx->gpr[ 1 ];
+      
+      if( chan[ chid ].data_on_chan ){
+        ctx->gpr[ 0 ] = -1;
+      }else{
+        chan[ chid ].data = data;
+        chan[ chid ].data_on_chan = 1;
+      
+        ctx->gpr[ 0 ] = 1;        
+      }
+      break;
+    }
+    
+    //listen
+    case 0x12 : {
+      chid_t chid = ctx->gpr[ 0 ];
+      int data = -1;
+      
+      if( !chan[ chid ].data_on_chan){
+        ctx->gpr[ 0 ] = -1;
+      }
+      else{
+        data = chan[ chid ].data;
+        chan[ chid ].data_on_chan = 0;
+        ctx->gpr[ 0 ] = data;
+      }
+      
+      break;
+    }
+    
+    //peek
+    case 0x13 : {
+      chid_t chid = ctx->gpr[ 0 ];
+      int ret;
+      
+      if( chan[ chid ].data_on_chan ){
+        ret = chan[ chid ].data; 
+      }
+      else{
+        ret = -1;
+      }
+      
+      ctx->gpr[ 0 ] = ret;
+      break;
+    }
+    
+    
    	default : {
    		break;
    	}

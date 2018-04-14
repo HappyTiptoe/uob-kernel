@@ -13,7 +13,6 @@ uint32_t weight( uint32_t x ) {
   x = ( x & 0x0F0F0F0F ) + ( ( x >>  4 ) & 0x0F0F0F0F );
   x = ( x & 0x00FF00FF ) + ( ( x >>  8 ) & 0x00FF00FF );
   x = ( x & 0x0000FFFF ) + ( ( x >> 16 ) & 0x0000FFFF );
-
   return x;
 }
 

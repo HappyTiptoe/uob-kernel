@@ -147,3 +147,75 @@ void nice( int pid, int x ) {
 
   return;
 }
+
+pid_t getpid(){
+  int r;
+  
+  asm volatile( "svc %1     \n" // make system call GET_PID
+                "mov %0, r0 \n" // assign r  = r0 
+              : "=r" (r) 
+              : "I" (SYS_GET_PID)
+              : "r0" );
+  return r;
+}
+
+chid_t create_chan( pid_t pid ){
+  int r;
+  
+  asm volatile( "mov r0, %2 \n" // assign r0 = pid
+                "svc %1     \n" // make system call IPC_CREATE
+                "mov %0, r0 \n" // assign r  = r0 
+              : "=r" (r) 
+              : "I" (IPC_CREATE), "r" (pid) 
+              : "r0" );
+  
+  return r;
+}
+
+int send( chid_t chid, int data ){
+  int r;
+  
+  asm volatile( "mov r0, %2 \n" // assign r0 = chan's id
+                "mov r1, %3 \n" // assign r1 = data to send
+                "svc %1     \n" // make system call IPD_SEND
+                "mov %0, r0 \n" // assign r  = r0 
+              : "=r" (r) 
+              : "I" (IPC_SEND), "r" (chid), "r" (data)
+              : "r0", "r1" );  
+  
+  return r;
+}
+
+int listen( chid_t chid ){
+  int r;
+  
+  asm volatile( "mov r0, %2 \n" // assign r0 = chan's id
+                "svc %1     \n" // make system call IPC_REC
+                "mov %0, r0 \n" // assign r  = r0 
+              : "=r" (r) 
+              : "I" (IPC_REC), "r" (chid)
+              : "r0" );   
+  
+  return r;
+}
+
+int peek( chid_t chid){
+  int r;
+  
+  asm volatile( "mov r0, %2 \n" // assign r0 = chid of channel to peek
+                "svc %1     \n" // make system call IPC_PEEK
+                "mov %0, r0 \n" // assign r  = r0 
+              : "=r" (r) 
+              : "I" (IPC_PEEK), "r" (chid) 
+              : "r0" );  
+  
+  return r;
+}
+
+/*
+  asm volatile( "svc %1     \n" // make system call SYS_FORK
+                "mov %0, r0 \n" // assign r  = r0 
+              : "=r" (r) 
+              : "I" (SYS_FORK)
+              : "r0" );
+ */

@@ -15,6 +15,7 @@
 // Define a type that that captures a Process IDentifier (PID).
 
 typedef int pid_t;
+typedef int chid_t;
 
 /* The definitions below capture symbolic constants within these classes:
  *
@@ -23,31 +24,41 @@ typedef int pid_t;
  * 2. signal identifiers (as used by the kill system call), 
  * 3. status codes for exit,
  * 4. standard file descriptors (e.g., for read and write system calls),
- * 5. platform-specific constants, which may need calibration (wrt. the
+ * 5. additional system call identifiers
+ * 6. platform-specific constants, which may need calibration (wrt. the
  *    underlying hardware QEMU is executed on).
  *
  * They don't *precisely* match the standard C library, but are intended
  * to act as a limited model of similar concepts.
  */
 
-#define SYS_YIELD     ( 0x00 )
-#define SYS_WRITE     ( 0x01 )
-#define SYS_READ      ( 0x02 )
-#define SYS_FORK      ( 0x03 )
-#define SYS_EXIT      ( 0x04 )
-#define SYS_EXEC      ( 0x05 )
-#define SYS_KILL      ( 0x06 )
-#define SYS_NICE      ( 0x07 )
+#define SYS_YIELD         ( 0x00 )
+#define SYS_WRITE         ( 0x01 )
+#define SYS_READ          ( 0x02 )
+#define SYS_FORK          ( 0x03 )
+#define SYS_EXIT          ( 0x04 )
+#define SYS_EXEC          ( 0x05 )
+#define SYS_KILL          ( 0x06 )
+#define SYS_NICE          ( 0x07 )
+#define SYS_GET_PID       ( 0x08 )
 
-#define SIG_TERM      ( 0x00 )
-#define SIG_QUIT      ( 0x01 )
+#define IPC_CREATE        ( 0x10 )
+#define IPC_SEND          ( 0x11 )
+#define IPC_REC           ( 0x12 )
+#define IPC_PEEK          ( 0x13 )
 
-#define EXIT_SUCCESS  ( 0 )
-#define EXIT_FAILURE  ( 1 )
+#define SIG_TERM          ( 0x00 )
+#define SIG_QUIT          ( 0x01 )
 
-#define  STDIN_FILENO ( 0 )
-#define STDOUT_FILENO ( 1 )
-#define STDERR_FILENO ( 2 )
+#define EXIT_SUCCESS      ( 0 )
+#define EXIT_FAILURE      ( 1 )
+
+#define  STDIN_FILENO     ( 0 )
+#define STDOUT_FILENO     ( 1 )
+#define STDERR_FILENO     ( 2 )
+
+//Part 2b extras:
+
 
 // convert ASCII string x into integer r
 extern int  atoi( char* x        );
@@ -60,18 +71,44 @@ extern void yield();
 // write n bytes from x to   the file descriptor fd; return bytes written
 extern int write( int fd, const void* x, size_t n );
 // read  n bytes into x from the file descriptor fd; return bytes read
-extern int  read( int fd,       void* x, size_t n );
+extern int read( int fd, void* x, size_t n );
 
 // perform fork, returning 0 iff. child or > 0 iff. parent process
-extern int  fork();
+extern int fork();
 // perform exit, i.e., terminate process with status x
-extern void exit(       int   x );
+extern void exit( int x );
 // perform exec, i.e., start executing program at address x
 extern void exec( const void* x );
 
 // for process identified by pid, send signal of x
-extern int  kill( pid_t pid, int x );
+extern int kill( pid_t pid, int x );
 // for process identified by pid, set  priority to x
 extern void nice( pid_t pid, int x );
+
+/////////////////
+// SECTION 2.2 //
+/////////////////
+
+// get pid of calling process
+extern pid_t get_pid();
+
+//Create a channel between executing & pid specified
+//Returns chan's id if succeed
+//Returns -1 if fail
+extern chid_t create_chan(pid_t pid);
+
+//Puts data on channel.
+//Returns 1 if succeed
+//Return -1 if fail
+extern int send( chid_t chid, int data);
+
+
+extern int listen( chid_t chid );
+
+//Looks at value on channel.
+//Return data on channel if succeed
+//Return -1 if no data on channel
+extern int peek( chid_t chid );
+
 
 #endif

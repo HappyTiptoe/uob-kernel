@@ -34,12 +34,20 @@ void gets( char* x, int n ) {
  * into the kernel image, it returns a pointer to the entry point.
  */
 
+extern void main_P1();
+extern void main_P2();
 extern void main_P3(); 
 extern void main_P4(); 
 extern void main_P5(); 
 
 void* load( char* x ) {
-  if     ( 0 == strcmp( x, "P3" ) ) {
+  if     ( 0 == strcmp( x, "P1" ) ) {
+    return &main_P1;
+  }
+  else if( 0 == strcmp( x, "P2" ) ) {
+    return &main_P2;
+  }
+  else if( 0 == strcmp( x, "P3" ) ) {
     return &main_P3;
   }
   else if( 0 == strcmp( x, "P4" ) ) {
@@ -92,14 +100,14 @@ void main_console() {
     gets( x, 1024 ); 
     p = strtok( x, " " );
 
-    if( 0 == strcmp( p, "execute" ) ) {
+    if( strcmp( p, "execute" ) == 0 ) {
       pid_t pid = fork();
 
-      if( 0 == pid ) {
+      if( pid == 0 ) {
         exec( load( strtok( NULL, " " ) ) );
       }
     } 
-    else if( 0 == strcmp( p, "terminate" ) ) {
+    else if( strcmp( p, "terminate" ) == 0 ) {
       pid_t pid = atoi( strtok( NULL, " " ) );
       int   s   = atoi( strtok( NULL, " " ) );
 
