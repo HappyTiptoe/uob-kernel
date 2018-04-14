@@ -159,14 +159,14 @@ pid_t getpid(){
   return r;
 }
 
-chid_t create_chan( pid_t pid ){
+chid_t chanend( chid_t chid ){
   int r;
   
-  asm volatile( "mov r0, %2 \n" // assign r0 = pid
-                "svc %1     \n" // make system call IPC_CREATE
+  asm volatile( "mov r0, %2 \n" // assign r0 = chid
+                "svc %1     \n" // make system call IPC_CHANEND
                 "mov %0, r0 \n" // assign r  = r0 
               : "=r" (r) 
-              : "I" (IPC_CREATE), "r" (pid) 
+              : "I" (IPC_CHANEND), "r" (chid)
               : "r0" );
   
   return r;
@@ -186,7 +186,7 @@ int send( chid_t chid, int data ){
   return r;
 }
 
-int listen( chid_t chid ){
+int receive( chid_t chid ){
   int r;
   
   asm volatile( "mov r0, %2 \n" // assign r0 = chan's id

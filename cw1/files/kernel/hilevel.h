@@ -37,6 +37,12 @@ typedef enum {
   STATUS_TERMINATED
 } status_t;
 
+typedef enum {
+  STATUS_NONE,
+  STATUS_ONE,
+  STATUS_BOTH
+} chan_status_t;
+
 typedef struct {
   uint32_t cpsr, pc, gpr[ 13 ], sp, lr;
 } ctx_t;
@@ -51,12 +57,12 @@ typedef struct {
 } pcb_t;
 
 typedef struct {
-  pid_t  w;            //process DOING THE SENDING
-  pid_t  r;            //process to send to
-  chid_t chan_ID;      //for identifying
-  int    data_on_chan; //flag for if data ready to be read
-  int    data;
-  //int   flag_chan_in_use; //TODO: Create some blocking stuff
+  pid_t  p1;              //process DOING THE SENDING
+  pid_t  p2;              //process to send to
+  chid_t chan_id;         //for identifying
+  int    pids_connected;  //to prevent too many connections
+  int    data_on_chan;    //flag for if data ready to be read
+  int    data;            //value of data to be sent across
 } chan_t;
 
 #endif

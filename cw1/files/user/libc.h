@@ -42,7 +42,7 @@ typedef int chid_t;
 #define SYS_NICE          ( 0x07 )
 #define SYS_GET_PID       ( 0x08 )
 
-#define IPC_CREATE        ( 0x10 )
+#define IPC_CHANEND       ( 0x10 )
 #define IPC_SEND          ( 0x11 )
 #define IPC_REC           ( 0x12 )
 #define IPC_PEEK          ( 0x13 )
@@ -92,18 +92,18 @@ extern void nice( pid_t pid, int x );
 // get pid of calling process
 extern pid_t get_pid();
 
-//Create a channel between executing & pid specified
-//Returns chan's id if succeed
-//Returns -1 if fail
-extern chid_t create_chan(pid_t pid);
+//CHANEND FUNCTION
+//returns channel's id if succeed
+//returns -1 if fail
+extern chid_t chanend( chid_t chid );
 
 //Puts data on channel.
 //Returns 1 if succeed
 //Return -1 if fail
-extern int send( chid_t chid, int data);
+extern int send( chid_t chid, int data );
 
 
-extern int listen( chid_t chid );
+extern int receive( chid_t chid );
 
 //Looks at value on channel.
 //Return data on channel if succeed

@@ -25,8 +25,7 @@ extern void main_console();	//Console program
 extern uint32_t tos_procs;	//Base of stack for processes
 
 //Channel definitions
-chan_t chan[ 2 ];
-chid_t chan_tail = 0;
+chan_t chan[ 64 ];
 
 
 //works out PCB's priority
@@ -75,7 +74,7 @@ void update_ages(pid_t proc_to_ignore){
 void scheduler(ctx_t* ctx){
 
 	//If more programs than just the console:
-	if( progs_running > 1 ){	
+	if( progs_running > 1 || pcb[ 0 ].status == STATUS_TERMINATED ){	
 		pid_t next_proc = 0;
 
 		//If console ran last
@@ -104,7 +103,7 @@ void scheduler(ctx_t* ctx){
 
 
 void hilevel_handler_rst(ctx_t* ctx) {
-	TIMER0->Timer1Load  = 0x00100000; // select period = 2^20 ticks ~= 1 sec
+	TIMER0->Timer1Load  = 0x00019999; // select period = 2^20 ticks ~= 1 sec
 	TIMER0->Timer1Ctrl  = 0x00000002; // select 32-bit   timer
  	TIMER0->Timer1Ctrl |= 0x00000040; // select periodic timer
  	TIMER0->Timer1Ctrl |= 0x00000020; // enable          timer interrupt
@@ -153,7 +152,6 @@ void hilevel_handler_irq(ctx_t* ctx) {
 
  	return;
 }
-
 
 
 void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
@@ -238,8 +236,8 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
 
       pcb[ executing ].status = STATUS_TERMINATED;
       progs_running--;
-      //scheduler(ctx);
-       executing = 0; //Jump to console
+      scheduler(ctx);
+      //Jump to console
 			break;
 		}
 
@@ -273,9 +271,10 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
    		PL011_putc( UART0, 'K', true );
 
    		pid_t pid = ctx->gpr[ 0 ];
-   		pcb[ pid ].status = STATUS_TERMINATED;
+      pcb[ pid ].status = STATUS_TERMINATED;
       progs_running--;
       scheduler(ctx);
+
    		break;
    	}
     
@@ -285,43 +284,42 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
       break;
     }
     
-    //create_chan
+    //connect chanend
     case 0x10 : {
       PL011_putc( UART0, 'C', true );
       
-      //Obtain other end pid
-      pid_t pid = ctx->gpr[ 0 ];
-      chid_t free_chan;
+      chid_t chan_id = ctx->gpr[ 0 ];
       
-      //Check channel already exists
-      if( pcb[ executing ].chan_end != -1 ){
-        PL011_putc( UART0, 'x', true );
-        ctx->gpr[ 0 ] = pcb[ executing ].chan_end;
+      /* Handle whether channel has:
+       * 1) Both ends connected
+       *    > fail as requesting to connect 3rd end
+       * 2) Just one end connected
+       *    > connected the 2nd one & succeed
+       * 3) No ends connected.
+       *    > create the channel and set pid requesting as p1
+       */
+      if( chan[ chan_id ].pids_connected == 2 ){
+        PL011_putc( UART0, 'a', true );
+        ctx->gpr[ 0 ] = -1; //fail.
       }
-      else if( pcb[ pid ].status == STATUS_READY  ){
-        PL011_putc( UART0, 'y', true );
-        //Create new channel with pid1(w) as executing and pid2(r) as pid arg.
-        chan_tail++;
-        free_chan = chan_tail;
-      
-        memset( &chan[ free_chan ], 0, sizeof(chan_t) ); //create channel
-      
-        //set values in channel
-        chan[ free_chan ].w = executing;
-        chan[ free_chan ].r = pid;
-        chan[ free_chan ].chan_ID = chan_tail;
-        chan[ free_chan ].data_on_chan = 0; //nothing in it yet
+      else if( chan[ chan_id ].pids_connected == 1 ){
+        PL011_putc( UART0, 'b', true );
+        chan[ chan_id ].p2 = pcb[ executing].pid;
+        chan[ chan_id ].pids_connected = 2;
+        ctx->gpr[ 0 ] = chan_id; //success
+      }
+      else{
+        PL011_putc( UART0, 'c', true );
+        memset( &chan[ chan_id ], 0, sizeof(chan_t) ); //create channel
         
-        //set pcb chanends
-        pcb[ executing ].chan_end = free_chan;
-        pcb[ pid ].chan_end = free_chan;
-      
-        //return value is chan's ID
-        ctx->gpr[ 0 ] = chan[ free_chan ].chan_ID;        
-      }else{
-        PL011_putc( UART0, 'z', true );
-        ctx->gpr[ 0 ] = -1;
+        chan[ chan_id ].p1 = pcb[ executing ].pid;
+        chan[ chan_id ].chan_id = chan_id;
+        chan[ chan_id ].pids_connected = 1;
+        chan[ chan_id ].data_on_chan = 0; 
+        
+        ctx->gpr[ 0 ] = chan_id; //success
       }
+      
       break;  
     }
     
@@ -363,13 +361,10 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
     //peek
     case 0x13 : {
       chid_t chid = ctx->gpr[ 0 ];
-      int ret;
+      int ret = -1;
       
       if( chan[ chid ].data_on_chan ){
         ret = chan[ chid ].data; 
-      }
-      else{
-        ret = -1;
       }
       
       ctx->gpr[ 0 ] = ret;

@@ -12,24 +12,23 @@ void main_P2(){
   chid_t chan_to_P1;
   int rec_res;
   
-  chan_to_P1 = create_chan( 1 );
-  while(chan_to_P1 == -1 ){
-    yield();
-    chan_to_P1 = create_chan( 1 );
-  }
+  pid_t pid = getpid();
   
-  rec_res = listen( chan_to_P1 );
+  chan_to_P1 = chanend( 1 );
+  if( chan_to_P1 == -1 ){ exit( EXIT_FAILURE ); }
+  
+  rec_res = receive( chan_to_P1 );
   while( rec_res == -1 || rec_res != 12 ){
     yield();
-    rec_res = listen( chan_to_P1 );
+    rec_res = receive( chan_to_P1 );
   }
   
   write( STDOUT_FILENO, "hs1", 3 );
   
-  rec_res = listen( chan_to_P1 );
+  rec_res = receive( chan_to_P1 );
   while( rec_res == -1 || rec_res != 20 ){
     yield();
-    rec_res = listen( chan_to_P1 );
+    rec_res = receive( chan_to_P1 );
   }
   
   write( STDOUT_FILENO, "hs2", 3 );
