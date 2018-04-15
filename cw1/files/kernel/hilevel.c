@@ -208,7 +208,6 @@ void hilevel_handler_svc(ctx_t* ctx, uint32_t id) {
 	   	memcpy( &pcb[ free_pid ].ctx, ctx, sizeof( ctx_t ) );	 //Copy parent prog into child
     	pcb[ free_pid ].status = STATUS_CREATED; 				       //Child process created
     	pcb[ free_pid ].pid = free_pid;							           //Set pid equal to its position in PCB list
-      pcb[ free_pid ].chan_end = -1;
 
     	//////////////////////////////////
      	// 3. Parent and child return vals
