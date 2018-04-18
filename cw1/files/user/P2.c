@@ -18,20 +18,9 @@ void main_P2(){
   if( chan_to_P1 == -1 ){ exit( EXIT_FAILURE ); }
   
   rec_res = receive( chan_to_P1 );
-  while( rec_res == -1 || rec_res != 12 ){
-    yield();
-    rec_res = receive( chan_to_P1 );
-  }
-  
-  write( STDOUT_FILENO, "hs1", 3 );
-  
   rec_res = receive( chan_to_P1 );
-  while( rec_res == -1 || rec_res != 20 ){
-    yield();
-    rec_res = receive( chan_to_P1 );
-  }
   
-  write( STDOUT_FILENO, "hs2", 3 );
-  
+  write( STDOUT_FILENO, "hs_done", 7 );
+    
   exit( EXIT_SUCCESS );
 }

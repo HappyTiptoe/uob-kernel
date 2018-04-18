@@ -45,7 +45,10 @@ typedef int chid_t;
 #define IPC_CHANEND       ( 0x10 )
 #define IPC_SEND          ( 0x11 )
 #define IPC_REC           ( 0x12 )
-#define IPC_PEEK          ( 0x13 )
+//was peek
+#define IPC_CHECK         ( 0x14 )
+#define IPC_WHICH         ( 0x15 )
+#define IPC_ISCON         ( 0x16 )
 
 #define SIG_TERM          ( 0x00 )
 #define SIG_QUIT          ( 0x01 )
@@ -90,25 +93,18 @@ extern void nice( pid_t pid, int x );
 /////////////////
 
 // get pid of calling process
-extern pid_t get_pid();
+extern pid_t  get_pid();
 
-//CHANEND FUNCTION
-//returns channel's id if succeed
-//returns -1 if fail
+// 
 extern chid_t chanend( chid_t chid );
 
-//Puts data on channel.
-//Returns 1 if succeed
-//Return -1 if fail
-extern int send( chid_t chid, int data );
+extern void   send( chid_t chid, int data );
 
+extern int    receive( chid_t chid );
 
-extern int receive( chid_t chid );
+extern int    check( chid_t chid );
 
-//Looks at value on channel.
-//Return data on channel if succeed
-//Return -1 if no data on channel
-extern int peek( chid_t chid );
+extern int    which_end( chid_t chid, pid_t pid);
 
 
 #endif

@@ -172,50 +172,127 @@ chid_t chanend( chid_t chid ){
   return r;
 }
 
-int send( chid_t chid, int data ){
-  int r;
-  
-  asm volatile( "mov r0, %2 \n" // assign r0 = chan's id
-                "mov r1, %3 \n" // assign r1 = data to send
-                "svc %1     \n" // make system call IPD_SEND
-                "mov %0, r0 \n" // assign r  = r0 
-              : "=r" (r) 
+void send( chid_t chid, int data ){
+
+  asm volatile( "mov r0, %1 \n" // assign r0 = chan's id
+                "mov r1, %2 \n" // assign r1 = data to send
+                "svc %0     \n" // make system call IPD_SEND
+              :
               : "I" (IPC_SEND), "r" (chid), "r" (data)
               : "r0", "r1" );  
   
-  return r;
+  pid_t pid = getpid();
+  
+  switch( which_end( chid, pid ) ){
+    //if p1 is sending:
+    case 1 : {
+      if( check( chid ) != 2 ){
+        write( STDOUT_FILENO, "Nothing set on channel.\n", 25);
+        return;
+      }
+      // if: data_on_chan_to_p2, yield
+      while( check( chid ) == 2 ){
+        // write( STDOUT_FILENO, "\nSEND: ", 8 );  
+        // print_num( pid ); 
+        // write( STDOUT_FILENO, " blocking p1\n", 14);
+        yield();
+      }
+      break;
+    }
+    
+    //if p2 is sending:
+    case 2 : {
+      if( check( chid ) != 1 ){
+        write( STDOUT_FILENO, "Nothing set on channel.\n", 25);
+        return;
+      }
+      // if: data_on_chan_to_p2, yield
+      while( check( chid ) == 1 ){
+        // write( STDOUT_FILENO, "\nSEND: ", 8 );  
+        // print_num( pid ); 
+        // write( STDOUT_FILENO, " blocking p2\n", 14);        
+        yield();
+      }
+      break;
+    }
+    
+    default : {
+      break;
+    }
+  }
+  
+  return;
 }
 
 int receive( chid_t chid ){
   int r;
+  
+  pid_t pid = getpid();
+  
+  switch( which_end( chid, pid ) ){
+    //if p1 is receiving:
+    case 1 : {
+      // if: no data_on_chan_to_p1, yield
+      while( check( chid ) != 1 ){
+        // write( STDOUT_FILENO, "\nREC: ", 7 );  
+        // print_num( pid ); 
+        // write( STDOUT_FILENO, " blocking p1\n", 14);   
+        yield();
+      }
+      break;
+    }
+    
+    //if p2 is receiving:
+    case 2 : {
+      // if: no data_on_chan_to_p2, yield
+      while( check( chid ) != 2 ){
+        // write( STDOUT_FILENO, "\nREC: ", 7 );  
+        // print_num( pid ); 
+        // write( STDOUT_FILENO, " blocking p2\n", 14);   
+        yield();
+      }
+      break;
+    }
+    
+    default : {
+      break;
+    }
+  }
   
   asm volatile( "mov r0, %2 \n" // assign r0 = chan's id
                 "svc %1     \n" // make system call IPC_REC
                 "mov %0, r0 \n" // assign r  = r0 
               : "=r" (r) 
               : "I" (IPC_REC), "r" (chid)
-              : "r0" );   
-  
+              : "r0" );
+                  
   return r;
 }
 
-int peek( chid_t chid){
+
+int check( chid_t chid ){
   int r;
   
-  asm volatile( "mov r0, %2 \n" // assign r0 = chid of channel to peek
-                "svc %1     \n" // make system call IPC_PEEK
+  asm volatile( "mov r0, %2 \n" // assign r0 = chid of channel to check
+                "svc %1     \n" // make system call IPC_CHECK
                 "mov %0, r0 \n" // assign r  = r0 
               : "=r" (r) 
-              : "I" (IPC_PEEK), "r" (chid) 
+              : "I" (IPC_CHECK), "r" (chid) 
               : "r0" );  
   
   return r;
 }
 
-/*
-  asm volatile( "svc %1     \n" // make system call SYS_FORK
+int which_end( chid_t chid, pid_t pid ){
+  int r;
+  
+  asm volatile( "mov r0, %2 \n" // assign r0 = chid
+                "mov r1, %3 \n" // assign r1 = pid
+                "svc %1     \n" // make system call IPC_CHECK
                 "mov %0, r0 \n" // assign r  = r0 
               : "=r" (r) 
-              : "I" (SYS_FORK)
-              : "r0" );
- */
+              : "I" (IPC_WHICH), "r" (chid), "r" (pid)
+              : "r0", "r1" );  
+  
+  return r;
+}

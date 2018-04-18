@@ -30,18 +30,10 @@ typedef int pid_t;
 typedef int chid_t;
 
 typedef enum { 
-  STATUS_CREATED,
   STATUS_READY,
   STATUS_EXECUTING,
-  STATUS_WAITING,
   STATUS_TERMINATED
 } status_t;
-
-typedef enum {
-  STATUS_NONE,
-  STATUS_ONE,
-  STATUS_BOTH
-} chan_status_t;
 
 typedef struct {
   uint32_t cpsr, pc, gpr[ 13 ], sp, lr;
@@ -53,16 +45,19 @@ typedef struct {
   ctx_t    ctx;
   uint32_t age;
   uint32_t base_priority;
+  uint32_t stack_top;
   chid_t   chan_end;
 } pcb_t;
 
 typedef struct {
-  pid_t  p1;              //process DOING THE SENDING
-  pid_t  p2;              //process to send to
-  chid_t chan_id;         //for identifying
-  int    pids_connected;  //to prevent too many connections
-  int    data_on_chan;    //flag for if data ready to be read
-  int    data;            //value of data to be sent across
+  pid_t  p1;              
+  pid_t  p2;              
+  chid_t chan_id;            //for identifying
+  int    pids_connected;     //to prevent too many connections
+  bool   data_on_chan_to_p1; //flag for if data ready for p1 to read
+  bool   data_on_chan_to_p2; //flag for if data ready for p2 to read
+  int    data_for_p1;        //value of data to be sent across
+  int    data_for_p2;        //value of data to be sent across
 } chan_t;
 
 #endif

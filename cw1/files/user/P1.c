@@ -16,16 +16,11 @@ void main_P1(){
     exit( EXIT_FAILURE );
   }
   
-  send_res = send( chan_to_P2, data_send );
-  while( send_res == -1 ){
-    yield();
-    send_res = send( chan_to_P2, data_send );
-  }
+  send( chan_to_P2, data_send );
   
-  send_res = send( chan_to_P2, data_send_2 );
-  while( send_res == -1 ){
-    yield();
-    send_res = send( chan_to_P2, data_send_2 );
-  }
+  send( chan_to_P2, data_send_2 );
+  
   exit( EXIT_SUCCESS );  
+  
+  write( STDOUT_FILENO, "exit", 4 );
 }
