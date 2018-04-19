@@ -1,6 +1,6 @@
 #include "W.h"
 
-#define    NUM_PHILS 16
+#define    NUM_PHILS  4
 #define    FORK_WANT  1
 #define    FORK_GIVE  2
 #define ORDER_ACCEPT 10

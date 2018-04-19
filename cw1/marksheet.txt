@@ -43,11 +43,11 @@ generality, realism, or style of a solution.
 
     Stage 1 : a baseline kernel
 [x]           - pre-emptive multi-tasking                            ( 30%)
-[?]           - priority-based scheduler                             ( 10%)
+[x]           - priority-based scheduler                             ( 10%)
 
     Stage 2 : closed generalisations and enhancements
-[?]           - fork, exec and exit system calls                     ( 15%)
-[?]           - Inter-Process Communication (IPC)                    ( 15%)
+[x]           - fork, exec and exit system calls                     ( 15%)
+[x]           - Inter-Process Communication (IPC)                    ( 15%)
 
     Stage 3 : open   generalisations and enhancements                ( 30%)
 [?]           - MMU-based protection and virtualisation
@@ -69,7 +69,14 @@ Any other documentation, notes or comments that you think are important or
 might be easy to overlook (e.g., a subtle issue or technique in associated
 source code) should go here:
 
-[...]
+hilevel.c :
+
+-> discuss stack_top 
+
+channels :
+-> discuss how it's 2 way
+-> 2 flags
+-> use the id of the chan to communicate - essentially a buffer.
 
 -------------------------------------------------------------------------------
 

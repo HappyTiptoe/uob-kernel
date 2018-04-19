@@ -26,6 +26,8 @@ pcb_t pcb[ num_pcbs ];		//32 PCBs
 chan_t chan[ num_chans ]; //64 Chans
 
 // External main funcs (for exec) & stack ptrs
+extern void main_P1();       // P3 program
+extern void main_P2();       // P3 program
 extern void main_P3();       // P3 program
 extern void main_P4();       // P4 program
 extern void main_P5();       // P5 program
@@ -37,90 +39,74 @@ extern uint32_t tos_procs;   // Base of stack for processes
 
 
 
-///////////////
-// FUNCTIONS //
-///////////////
+////////////////////////
+// PRIORITY SCHEDULER //
+////////////////////////
 
 // Works out PCB's priority
-uint32_t get_priority(int i){
-	return pcb[ i ].age + pcb[ i ].base_priority;
+uint32_t get_priority( pid_t pid ){
+	return pcb[ pid ].age + pcb[ pid ].base_priority;
 }
 
-/**
-  //returns pid of PCB with highest priority
-  uint32_t find_next_proc(){
-	uint32_t highest_pri = 0;
-	uint32_t pri;
-	pid_t pid = 0;
+//returns pid of PCB with highest priority
+pid_t find_next_proc(){
+	pid_t         pid = 0;
+  int           pri = -1;
+  int   highest_pri = -1;
 
-	for( int i = 1; i <= tail_pid; i++ ){
-
-		//Program has to be in READY or already EXECUTING 
-		if( pcb[ i ].status == STATUS_READY || pcb[ i ].status == STATUS_EXECUTING ){
-
-			pri = get_priority(i);
-
-			if(pri > highest_pri){
-				highest_pri = pri;
-				pid = i;
-			}
+	for( int i = 0; i <= tail_pid; i++ ){
+    if( pcb[ i ].status == STATUS_READY || pcb[ i ].status == STATUS_EXECUTING ){
+			pri = get_priority( i );
 		}
+    else{
+      PL011_putc( UART0, 'f', true );
+    }
+    if(pri > highest_pri){
+      highest_pri = pri;
+      pid = i;
+    }
 	}
 	return pid;
-  }
-*/
-
-// For use of Round-robin scheduler
-pid_t next_alive_prog(){
-  pid_t next_val = executing + 1;
-  
-  for( next_val; next_val <= tail_pid; next_val++ ){
-    if( pcb[ next_val ].status == STATUS_READY || pcb[ next_val ].status == STATUS_EXECUTING ){
-      return next_val;
-    }
-  }
-  
-  return 0;
 }
+
 
 // Increments all PCB ages except one picked by scheduler
 void update_ages(pid_t proc_to_ignore){
-	for( int i = 1; i <= tail_pid; i++ ){
-    
-		if( ( !pcb[ i ].status == STATUS_TERMINATED ) && ( i != proc_to_ignore ) ){
+	for( int i = 0; i <= tail_pid; i++ ){
       pcb[ i ].age++; 
-    }
-    			
 	}	
 }
 
  
-
-/*
-  //Picks, using priority, next program to execute
-  //Alternates between console and programs
-  void scheduler(ctx_t* ctx){
+//Picks, using priority, next program to execute
+//Alternates between console and programs
+void scheduler( ctx_t* ctx ){
   PL011_putc( UART0, 'S', true );
 
 	//If more programs than just the console:
 	if( progs_running > 1 ){	
 		pid_t next_proc = 0;
 
-		//If console ran last
-		if(console_last){
-			next_proc = find_next_proc();
-			console_last = 0;
-		}
-		//Otherwise run console (next_proc already 0)
-		else{
-			console_last = 1;
-		}
+		next_proc = find_next_proc();
+    
 
-    update_ages(next_proc);
+    switch(next_proc){
+      case 2:{
+        PL011_putc( UART0, 'x', true );
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    
+    update_ages( next_proc );
 
 		//Store old running
    	memcpy( &pcb[ executing ].ctx, ctx, sizeof( ctx_t ) );
-   	pcb[ executing ].status = STATUS_READY;  
+   	if( pcb[ executing ].status != STATUS_TERMINATED ){
+      pcb[ executing ].status = STATUS_READY; 
+    }
 			
 		//Load new running & reset age
 		memcpy( ctx, &pcb[ next_proc ].ctx, sizeof( ctx_t ) );
@@ -128,9 +114,15 @@ void update_ages(pid_t proc_to_ignore){
 		pcb[ next_proc ].age = 0;
   	executing = next_proc;	
 	}
-  }
-*/
+}
 
+
+
+///////////////////////////
+// ROUND ROBIN SCHEDULER //
+///////////////////////////
+
+/*
 // Basic, round-robin scheduler
 void scheduler( ctx_t* ctx ){
   // If not just console running (prevents looping shell$)
@@ -147,7 +139,29 @@ void scheduler( ctx_t* ctx ){
     executing = next_proc; 
   } 
 }
+*/
 
+/*
+// For use of Round-robin scheduler
+pid_t next_alive_prog(){
+  pid_t next_val = executing + 1;
+  
+  for( next_val; next_val <= tail_pid; next_val++ ){
+    if( pcb[ next_val ].status == STATUS_READY || pcb[ next_val ].status == STATUS_EXECUTING ){
+      return next_val;
+    }
+  }
+  
+  return 0;
+}
+
+ */
+
+
+
+////////////////////////
+// INTERRUPT HANDLERS //
+////////////////////////
 
 void hilevel_handler_rst( ctx_t* ctx ) {
 	TIMER0->Timer1Load  = 0x00100000; // select period = 2^2 ticks ~= 0.1 sec
@@ -164,12 +178,13 @@ void hilevel_handler_rst( ctx_t* ctx ) {
 	// Initialise console PCB:
 	memset( &pcb[ 0 ], 0, sizeof(pcb_t) );
 
-	pcb[ 0 ].pid       = 0;
-	pcb[ 0 ].status    = STATUS_READY;
-	pcb[ 0 ].ctx.cpsr  = 0x50;
-	pcb[ 0 ].ctx.pc    = (uint32_t)(&main_console);
-	pcb[ 0 ].ctx.sp    = (uint32_t)(&tos_console);
-  pcb[ 0 ].stack_top = (uint32_t)(&tos_console);
+	pcb[ 0 ].pid           = 0;
+	pcb[ 0 ].status        = STATUS_READY;
+	pcb[ 0 ].ctx.cpsr      = 0x50;
+  pcb[ 0 ].ctx.pc        = (uint32_t)(&main_console);
+  pcb[ 0 ].ctx.sp        = (uint32_t)(&tos_console);
+  pcb[ 0 ].base_priority = 1;
+  pcb[ 0 ].stack_top     = (uint32_t)(&tos_console);
 
 	int_enable_irq();
 
@@ -306,18 +321,23 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
    		/////////////////////////////////////////////////////
    		// 2. Change base priority depending on program image
      		
-   		if( strcmp(new_prog_img, &main_P3) == 0 ){pcb[ executing ].base_priority = 1;}
-   		if( strcmp(new_prog_img, &main_P4) == 0 ){pcb[ executing ].base_priority = 2;}
-      if( strcmp(new_prog_img, &main_P5) == 0 ){pcb[ executing ].base_priority = 4;}
-      if( strcmp(new_prog_img, &main_W ) == 0 ){pcb[ executing ].base_priority = 1;}
-   		if( strcmp(new_prog_img, &main_PH) == 0 ){pcb[ executing ].base_priority = 1;}
+      if( strcmp(new_prog_img, &main_P1) == 0 ){ pcb[ executing ].base_priority = 1; }
+      if( strcmp(new_prog_img, &main_P2) == 0 ){ pcb[ executing ].base_priority = 1; }
+   		if( strcmp(new_prog_img, &main_P3) == 0 ){ pcb[ executing ].base_priority = 1; }
+   		if( strcmp(new_prog_img, &main_P4) == 0 ){ pcb[ executing ].base_priority = 2; }
+      if( strcmp(new_prog_img, &main_P5) == 0 ){ pcb[ executing ].base_priority = 4; }
+      if( strcmp(new_prog_img, &main_W ) == 0 ){ pcb[ executing ].base_priority = 1; }
+   		if( strcmp(new_prog_img, &main_PH) == 0 ){ pcb[ executing ].base_priority = 1; }
 
    		////////////////////////////
    		// 3. Reset state (sp & age)
-     	
-      //Clear stack
-      memset( pcb[ executing ].stack_top - stack_size, 0, stack_size);
+     	//memcpy( ctx->gpr, 0, 13 * sizeof( uint32_t ) );
       
+      //Clear stack
+      
+      memset( pcb[ executing ].stack_top - stack_size, 0, stack_size);
+      //reset everything
+      //pen & paer scheduler
    		ctx->sp = pcb[ executing ].stack_top;
    		pcb[ executing ].age = 0;
 
@@ -326,22 +346,21 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
 
     //kill
    	case 0x06 : {
-   		PL011_putc( UART0, 'K', true );
-
    		pid_t pid = ctx->gpr[ 0 ];
       status_t stat = pcb[ pid ].status;
       
       if( stat == STATUS_READY || stat == STATUS_EXECUTING ){
+        PL011_putc( UART0, 'k', true );
         pcb[ pid ].status = STATUS_TERMINATED;
-        //console still running
-        if(--progs_running < 1){ progs_running = 1; }
+        if(--progs_running < 1){
+          progs_running = 1;
+        }
         ctx->gpr[ 0 ] = 1;
         scheduler(ctx);
       }
       else{ 
         ctx->gpr[ 0 ] = -1;
-      }
-      
+      }  
    		break;
    	}
     
