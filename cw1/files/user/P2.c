@@ -10,7 +10,8 @@
 void main_P2(){
   
   chid_t chan_to_P1;
-  int rec_res;
+  int    rec_res;
+  int    data_send = 5;
   
   pid_t pid = getpid();
   
@@ -18,9 +19,9 @@ void main_P2(){
   if( chan_to_P1 == -1 ){ exit( EXIT_FAILURE ); }
   
   rec_res = receive( chan_to_P1 );
-  rec_res = receive( chan_to_P1 );
+  write( STDOUT_FILENO, "P1 spoke to P2\n", 16 );
   
-  write( STDOUT_FILENO, "hs_done", 7 );
-    
+  send( chan_to_P1, data_send );
+  
   exit( EXIT_SUCCESS );
 }

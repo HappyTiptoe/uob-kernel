@@ -2,16 +2,17 @@
 
 #define    NUM_PHILS  4
 #define    FORK_WANT  1
-#define    FORK_GIVE  2
+#define     FORK_RET  2
 #define ORDER_ACCEPT 10
 #define ORDER_REJECT 11
+#define     PHIL_FIN 12
 
 extern void main_PH();
 
-chid_t chan_to_phil[ NUM_PHILS ];
-pid_t     phil_pids[ NUM_PHILS ];
-pid_t                 waiter_pid;
+int     phils_eating = NUM_PHILS;
 bool          forks[ NUM_PHILS ];
+pid_t     phil_pids[ NUM_PHILS ];
+chid_t chan_to_phil[ NUM_PHILS ];
 
 
 void toggle_forks( int phil_num ){
@@ -39,7 +40,7 @@ bool can_eat( int phil_num ){
 }
 
 
-void create_phils(){
+void init_phils(){
   for( int i = 0; i < NUM_PHILS; i++ ){
     pid_t pid = fork();
     
@@ -48,76 +49,49 @@ void create_phils(){
       exec( &main_PH );
     }
     else{
-      //still waiter, put pid in list
+      //waiter
+      forks[ i ] = true;                     // Reset forks
       phil_pids[ i ] = pid;
+      chan_to_phil[ i ] = chanend( pid );    // Create channel to it
     }
   }
 }
 
 
 void serve_phils(){
-  
   for( int i = 0; i < NUM_PHILS; i++ ){
-    int    phil_order = -1;               // to hold give/want order
-    chid_t phil_chan = chan_to_phil[ i ]; // select phil channel
-    phil_order = receive( phil_chan );    // get order
+    chid_t phil_chan = chan_to_phil[ i ];  // select phil channel
+    int phil_order = receive( phil_chan ); // get order
 
-    switch( phil_order ){
-      
-      // phil wants to eat
-      case FORK_WANT : {
-        if( can_eat( i ) ){
-          // both forks present, begin to eat
-          send( phil_chan, ORDER_ACCEPT );
-          toggle_forks( i );
-        }
-        else{
-          // requires both forks
-          send( phil_chan, ORDER_REJECT );
-        }
-        break;
-      } 
-      
-      // phil wants to return forks
-      case FORK_GIVE : {
-        if( !can_eat( i ) ){
-          // neither fork present (due to implimentation)
-          send( phil_chan, ORDER_ACCEPT );
-          toggle_forks( i );
-        }
-        else{
-          // can't give back forks doesn't have
-          send( phil_chan, ORDER_REJECT );
-        }
-        break;
-      }
-      
-      default: {
-        break;
-      }
+    if(      phil_order == FORK_WANT &&  can_eat( i ) ){
+      send( phil_chan, ORDER_ACCEPT ); 
+      toggle_forks( i );
     }
-  }             
+    else if( phil_order == FORK_RET && !can_eat( i ) ){
+      send( phil_chan, ORDER_ACCEPT );
+      toggle_forks( i );
+    }
+    // else if( phil_order == PHIL_FIN ){
+    //   toggle_forks( i );
+    //   phils_eating--;
+    // }
+    else{
+      send( phil_chan, ORDER_REJECT );
+    }
+  }
+  write( STDOUT_FILENO, "\n", 2);             
 }
 
-
 void main_W(){
-  write( STDOUT_FILENO, "Program started...\n", 20);
-  waiter_pid = getpid();                   // Obtain waiter's PID  
+  // int counter = 0; 
   
-  write( STDOUT_FILENO, "Creating phil progs...\n", 24);
-  create_phils();                          // Create 16 PH programs
-  write( STDOUT_FILENO, "All phils created...\n", 22);
-  
-  for( int i = 0; i < NUM_PHILS; i++ ){    // For each one:
-    forks[ i ] = true;                     // Reset forks
-    
-    pid_t pid = phil_pids[ i ];
-    chan_to_phil[ i ] = chanend( pid );    // Create channel to it
-    send( chan_to_phil[ i ], waiter_pid ); // Send waiter's pid
-  }
+  init_phils();
 
-  while( 1 ){
+  while( 1 && phils_eating > 0){
     serve_phils();
+    // counter++;
   }
+  
+  exit( EXIT_SUCCESS );
    
 }

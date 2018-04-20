@@ -41,6 +41,7 @@ typedef int chid_t;
 #define SYS_KILL          ( 0x06 )
 #define SYS_NICE          ( 0x07 )
 #define SYS_GET_PID       ( 0x08 )
+#define SYS_SCHED         ( 0x09 )
 
 #define IPC_CHANEND       ( 0x10 )
 #define IPC_SEND          ( 0x11 )
@@ -48,7 +49,8 @@ typedef int chid_t;
 //was peek
 #define IPC_CHECK         ( 0x14 )
 #define IPC_WHICH         ( 0x15 )
-#define IPC_ISCON         ( 0x16 )
+
+#define SYS_PIPE          ( 0x20 )
 
 #define SIG_TERM          ( 0x00 )
 #define SIG_QUIT          ( 0x01 )
@@ -106,5 +108,8 @@ extern int    check( chid_t chid );
 
 extern int    which_end( chid_t chid, pid_t pid);
 
+extern void   switch_sched( int mode );
+
+extern  int   pipe( int filedes[2] );
 
 #endif

@@ -148,6 +148,15 @@ void nice( int pid, int x ) {
   return;
 }
 
+void switch_sched( int x ){
+  asm volatile( "mov r0, %1 \n" // assign r0 =  pid
+                "svc %0     \n" // make system call SYS_NICE
+              : 
+              : "I" (SYS_SCHED), "r" (x)
+              : "r0" );
+  
+}
+
 pid_t getpid(){
   int r;
   
@@ -295,4 +304,17 @@ int which_end( chid_t chid, pid_t pid ){
               : "r0", "r1" );  
   
   return r;
+}
+
+int pipe( int filedes[2] ){
+  int r;
+  int* fds = filedes;
+  asm volatile( "mov r0, %2 \n" // assign r0 = chid
+                "svc %1     \n" // make system call IPC_CHECK
+                "mov %0, r0 \n" // assign r  = r0 
+              : "=r" (r) 
+              : "I" (SYS_PIPE), "r" (fds)
+              : "r0" );  
+  
+  return r;  
 }

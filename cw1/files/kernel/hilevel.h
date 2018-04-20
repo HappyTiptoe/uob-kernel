@@ -31,6 +31,7 @@ typedef int chid_t;
 
 typedef enum { 
   STATUS_READY,
+  STATUS_CREATED,
   STATUS_EXECUTING,
   STATUS_TERMINATED
 } status_t;
@@ -59,6 +60,14 @@ typedef struct {
   int    data_for_p1;        //value of data to be sent across
   int    data_for_p2;        //value of data to be sent across
 } chan_t;
+
+typedef struct {
+  bool     flag; //1 = data inside
+  bool     open;
+  char*    data;
+  size_t   data_size;
+  status_t status;
+} pipeend_t;
 
 #endif
 
